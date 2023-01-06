@@ -7,18 +7,17 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
-	//"time"
+	"time"
 )
 
 var File *string
 var TimeLimit *uint
 const INFTIME uint = 1 << 64 -1
-var score uint = 0
-var count uint = 0
+var score int = 0
+var count int = 0
 var questionSet [][]string = make([][]string, 0,1024) //For Performance Reasons
-var answers = make(chan bool)
-var wg = sync.WaitGroup{}
+var answers = make(chan string)
+
 
 
 func init(){
@@ -50,12 +49,11 @@ func init(){
 	}
 
 	questionSet = append(questionSet, questions...)
-	
+	count = len(questionSet)	
 }
 
-
-
-func readNextQuestion(idx int,q, a string){
+func inputEvent(idx int, q, a string){
+	//Take Answer as Input
 	scanner := bufio.NewReader(os.Stdin)
 	fmt.Printf("Problem #%v %v :",idx+1, q)
 	input, err := scanner.ReadString('\n')
@@ -63,43 +61,54 @@ func readNextQuestion(idx int,q, a string){
 			panic("Error in Reading Input")
 	}
 	input = strings.TrimRight(input, "\n")
+
+	answers<-input
 	
-	if input == a{
-		answers<-true
-	}else{
-		answers<-false
-	}
-	
-	count++
-	wg.Done()
 }
 
-func updateScore(x <-chan bool){
-	if y:=<-x; y{
+
+func checkAnswer(in, a string){
+	//Validate Answer
+	if in == a{
 		score++
 	}
-	wg.Done()
 }
+
 
 
 
 
 func startQuiz(){
+	timer := time.NewTimer(time.Duration(*TimeLimit)*time.Second)
 	//code for quizLogic
-	for idx,x := range questionSet{
-		q, a:= x[0], x[1]
-		wg.Add(2)
-		go readNextQuestion(idx, q, a)
-		go updateScore(answers)
-		wg.Wait()
-	}
+	
+		for idx,x := range questionSet{
+			q, a:= x[0], x[1]
+
+			// readNextQuestion(idx, q, a)
+			// updateScore(answers)
+			
+			go inputEvent(idx, q, a)
+			select{
+			case answer := <-answers:
+				checkAnswer(answer, a)
+			case <-timer.C:
+				fmt.Println("\nTimeOut")
+				return		
+			}
+		}
+	
+	
+}
+
+func cleanup(){
 	close(answers)
-	fmt.Println("Your Score was ", score, " out of ",count)
 }
 
 func main(){
 	//Logic for Quiz Controller
 	startQuiz()
 	//CleanUps if any
-
+	cleanup()
+	fmt.Println("Your Score was ", score, " out of ",count)
 }
